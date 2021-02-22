@@ -5,25 +5,21 @@ use rustling_ontology_values::dimension::*;
 use rustling_ontology_values::dimension::Precision::*;
 use rustling_ontology_values::helpers;
 use rustling_ontology_moment::{Weekday, Grain};
+use rustling_ontology_values::helpers::second;
 
 
 pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
 
     /* DATETIME - COMPLEX RULES */
-    // TODO: split date/time combinations + exclude intersect w/ 1 interval?
     b.rule_2("intersect <datetime>",
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
-             |a, b| a.value().intersect(b.value())
+             |a, b| {
+                 let res = a.value().intersect(b.value());
+                 println!("intersect {:?}", res);
+                 res
+             }
     );
-    // TODO: split date/time combinations + exclude intersect w/ 1 interval?
-    b.rule_3("intersect by \"of\", \"from\", \"'s\"",
-             datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
-             b.reg(r#"of|from|for|'s"#)?,
-             datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
-             |a, _, b| a.value().intersect(b.value())
-    );
-    // TODO: split date/time combinations + exclude intersect w/ 1 interval?
     b.rule_3("intersect by \",\"",
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
              b.reg(r#","#)?,
@@ -33,42 +29,35 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* END OF DATETIME - COMPLEX RULES */
 
     /* DATETIME - DATE - PREPOSITION + DATES */
-    b.rule_2("on|in <date>",
-             b.reg(r#"[oi]n"#)?,
+    b.rule_2("in|on <date>",
+             b.reg(r#"в|на"#)?,
              datetime_check!(|datetime: &DatetimeValue| form!(Form::DayOfMonth)(datetime) || form!(Form::Celebration)(datetime)),
              |_, a| Ok(a.value().clone().not_latent())
     );
     // TODO: add restrictions on datetime form
     b.rule_2("during <date>",
-             b.reg(r#"during"#)?,
+             b.reg(r#"(?:в )?течени[ие]"#)?,
              datetime_check!(),
              |_, a| Ok(a.value().clone().not_latent())
     );
-    // TODO: add restrictions on datetime form
     b.rule_2("for <datetime>",
-             b.reg(r#"(?:for|at|on)"#)?,
+             b.reg(r#"в|на"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent),
              |_, a| Ok(a.value().clone().not_latent())
     );
-    b.rule_2("for <meal>",
-             b.reg(r#"for"#)?,
-             datetime_check!(form!(Form::Meal)),
-             |_, a| Ok(a.value().clone().not_latent())
-    );
     b.rule_2("in|for <named-month>",
-             b.reg(r#"in|for"#)?,
+             b.reg(r#"в|на"#)?,
              datetime_check!(form!(Form::Month(_))),
              |_, a| Ok(a.value().clone().not_latent())
     );
-
     b.rule_2("in|for <year>",
-             b.reg(r#"in|for"#)?,
+             b.reg(r#"в|на"#)?,
              datetime_check!(|datetime: &DatetimeValue| form!(Form::Year(_))(datetime) && !datetime.latent),
              |_, a| Ok(a.value().clone().not_latent())
     );
 
-    b.rule_2("in|for <season>",
-             b.reg(r#"in|for"#)?,
+    b.rule_2("on <season>",
+             b.reg(r#"на"#)?,
              datetime_check!(form!(Form::Season)),
              |_, a| Ok(a.value().clone().not_latent())
     );
@@ -77,79 +66,79 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - DATE - STANDALONE SINGLE GRAIN */
 
     b.rule_1_terminal("named-day",
-                      b.reg(r#"monday|mon\.?"#)?,
+                      b.reg(r#"понедельник[ау]?|пн\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Mon)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"tuesday|tues?\.?"#)?,
+                      b.reg(r#"вторнику?|вт?\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Tue)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"wed?nesday|wed\.?"#)?,
+                      b.reg(r#"сред[еау]|ср\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Wed)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"thursday|thu(?:rs?)?\.?"#)?,
+                      b.reg(r#"четверг[у]?|чт\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Thu)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"friday|fri\.?"#)?,
+                      b.reg(r#"пятниц[ауеы]|пт\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Fri)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"saturday|sat\.?"#)?,
+                      b.reg(r#"суббот[ауе]|сб\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Sat)
     );
     b.rule_1_terminal("named-day",
-                      b.reg(r#"sunday|sun\.?"#)?,
+                      b.reg(r#"воскресень[еяю]|вс\.?"#)?,
                       |_| helpers::day_of_week(Weekday::Sun)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"january|jan\.?"#)?,
+                      b.reg(r#"январ[ьяюе]|янв\.?"#)?,
                       |_| helpers::month(1)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"february|feb\.?"#)?,
+                      b.reg(r#"феврал[ьяюе]|фев\.?"#)?,
                       |_| helpers::month(2)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"march|mar\.?"#)?,
+                      b.reg(r#"март[ауе]?"#)?,
                       |_| helpers::month(3)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"april|apr\.?"#)?,
+                      b.reg(r#"апрел[ьяюе]|апр\.?"#)?,
                       |_| helpers::month(4)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"may"#)?,
+                      b.reg(r#"ма[йюяе]"#)?,
                       |_| helpers::month(5)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"june|jun\.?"#)?,
+                      b.reg(r#"июн[ьяюе]"#)?,
                       |_| helpers::month(6)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"july|jul\.?"#)?,
+                      b.reg(r#"июл[ьяюе]"#)?,
                       |_| helpers::month(7)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"august|aug\.?"#)?,
+                      b.reg(r#"август[аеу]?|авг\.?"#)?,
                       |_| helpers::month(8)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"september|sept?\.?"#)?,
+                      b.reg(r#"сентябр[ьяюе]|сент\.?"#)?,
                       |_| helpers::month(9)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"october|oct\.?"#)?,
+                      b.reg(r#"октябр[ьяюе]|окт\.?"#)?,
                       |_| helpers::month(10)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"november|nov\.?"#)?,
+                      b.reg(r#"ноябр[ьяюе]|нояб\.?"#)?,
                       |_| helpers::month(11)
     );
     b.rule_1_terminal("named-month",
-                      b.reg(r#"december|dec\.?"#)?,
+                      b.reg(r#"декабр[ьяюе]|дек\.?"#)?,
                       |_| helpers::month(12)
     );
     // Quarters identified by an ordinal are similar to months
@@ -158,12 +147,6 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              cycle_check!(|cycle: &CycleValue| cycle.grain == Grain::Quarter),
              |ordinal, _| helpers::cycle_nth_after(Grain::Quarter, ordinal.value().value - 1, &helpers::cycle_nth(Grain::Year, 0)?)
     );
-    b.rule_3("the <ordinal> quarter",
-             b.reg(r#"the"#)?,
-             ordinal_check_by_range!(1, 4),
-             cycle_check!(|cycle: &CycleValue| cycle.grain == Grain::Quarter),
-             |_, ordinal, _| helpers::cycle_nth_after(Grain::Quarter, ordinal.value().value - 1, &helpers::cycle_nth(Grain::Year, 0)?)
-    );
     b.rule_3("<ordinal> quarter <year>",
              ordinal_check_by_range!(1, 4),
              cycle_check!(|cycle: &CycleValue| cycle.grain == Grain::Quarter),
@@ -171,18 +154,18 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              |ordinal, _, datetime| helpers::cycle_nth_after(Grain::Quarter, ordinal.value().value - 1, datetime.value())
     );
     b.rule_2("Q1-4 <year>",
-             b.reg(r#"q ?([1234]|one|two|three|four)"#)?,
+             b.reg(r#"([1234]|первый|второй|третий|четвертый) ?квартал"#)?,
              datetime_check!(form!(Form::Year(_))),
              |q, year| {
-                 let n = match q.group(1).as_ref() {
+                 let n = match q.group(0).as_ref() {
                      "1" => 0,
                      "2" => 1,
                      "3" => 2,
                      "4" => 3,
-                     "one" => 0,
-                     "two" => 1,
-                     "three" => 2,
-                     "four" => 3,
+                     "первый" => 0,
+                     "второй" => 1,
+                     "третий" => 2,
+                     "четвертый" => 3,
                      _ => return Err(RuleError::Invalid.into()),
                  };
                  helpers::cycle_nth_after(Grain::Quarter, n, year.value())
@@ -194,41 +177,44 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - DATE - DEICTICS */
 
     b.rule_1_terminal("today",
-                      b.reg(r#"today"#)?,
-                      |_| helpers::cycle_nth(Grain::Day, 0)
+                      b.reg(r#"сегодня"#)?,
+                      |_| {
+                          println!("today");
+                          helpers::cycle_nth(Grain::Day, 0)
+                      }
     );
     b.rule_1_terminal("tomorrow",
-                      b.reg(r#"(?:tmrw?|tomm?or?rows?)"#)?,
+                      b.reg(r#"завтра"#)?,
                       |_| helpers::cycle_nth(Grain::Day, 1)
     );
     b.rule_1_terminal("the day after tomorrow",
-                      b.reg(r#"(?:the )?day after (?:tmrw?|tomm?or?rows?)"#)?,
+                      b.reg(r#"послезавтра"#)?,
                       |_| helpers::cycle_nth(Grain::Day, 2)
     );
     b.rule_1_terminal("yesterday",
-                      b.reg(r#"yesterdays?"#)?,
+                      b.reg(r#"вчера"#)?,
                       |_| helpers::cycle_nth(Grain::Day, -1)
     );
     b.rule_1_terminal("the day before yesterday",
-                      b.reg(r#"(?:the )?day before yesterdays?"#)?,
+                      b.reg(r#"позавчера"#)?,
                       |_| helpers::cycle_nth(Grain::Day, -2)
     );
     b.rule_1_terminal("end of week",
-                      b.reg(r#"(?:the )?end of (?:the )?week"#)?,
+                      b.reg(r#"кон(?:ец|це) недели"#)?,
                       |_| helpers::day_of_week(Weekday::Thu)
                           ?.span_to(&helpers::day_of_week(Weekday::Sun)?, false)
     );
     b.rule_1_terminal("by the end of the week",
-                      b.reg(r#"by (?:the )?end of (?:the )?week"#)?,
+                      b.reg(r#"(?:к|до) конц[yа] недели"#)?,
                       |_| helpers::cycle_nth(Grain::Day, 0)?
                           .span_to(&helpers::day_of_week(Weekday::Sun)?, true)
     );
-    b.rule_1_terminal("EOD|End of day",
-                      b.reg(r#"(?:eod|end of (?:the )?day)"#)?,
+    b.rule_1_terminal("end of day",
+                      b.reg(r#"(?:к |в |на )?кон(?:ец|це|у) дня"#)?,
                       |_| helpers::hour(20, false)
     );
-    b.rule_1_terminal("EOM|End of month",
-                      b.reg(r#"(?:the )?(?:eom|end of (?:the )?month)"#)?,
+    b.rule_1_terminal("end of month",
+                      b.reg(r#"кон(?:ец|це) месяца"#)?,
                       |_| {
                           let month = helpers::cycle_nth(Grain::Month, 1)?;
                           Ok(helpers::cycle_nth_after(Grain::Day, -10, &month)?
@@ -238,12 +224,12 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("by the end of month",
-                      b.reg(r#"by (?:the )?(?:eom|end of (?:the )?month)"#)?,
+                      b.reg(r#"(?:к|до) конц[yа] месяца"#)?,
                       |_| helpers::cycle_nth(Grain::Day, 0)?
                           .span_to(&helpers::cycle_nth(Grain::Month, 0)?, true)
     );
-    b.rule_1_terminal("EOY|End of year",
-                      b.reg(r#"(?:the )?(?:eoy|end of (?:the )?year)"#)?,
+    b.rule_1_terminal("end of year",
+                      b.reg(r#"кон(?:ец|це) года"#)?,
                       |_| {
                           let current_year = helpers::cycle_nth(Grain::Year, 0)?;
                           let start = current_year.intersect(&helpers::month(10)?)?;
@@ -252,7 +238,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("by the end of year",
-                      b.reg(r#"by (?:the )?(?:eoy|end of (?:the )?year)"#)?,
+                      b.reg(r#"(?:к|до) конц[yа] года"#)?,
                       |_| {
                           let current_year = helpers::cycle_nth(Grain::Year, 0)?;
                           let end = current_year.intersect(&helpers::month(12)?)?;
@@ -261,14 +247,12 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_2("this|next <day-of-week>",
-             b.reg(r#"this|(?:the )?next"#)?,
+             b.reg(r#"эт(?:а|от|им|у|ого|ой)|следующ(?:ий|ая|ей|его)"#)?,
              datetime_check!(form!(Form::DayOfWeek{..})),
-             |_, a| {
-                 a.value().the_nth_not_immediate(0)
-             }
+             |_, a| a.value().the_nth_not_immediate(0)
     );
     b.rule_2("this <datetime>",
-             b.reg(r#"the|this|current|coming"#)?,
+             b.reg(r#"эт(?:от|им|у|ого)|текущий"#)?,
              datetime_check!(|datetime: &DatetimeValue| !form!(Form::PartOfDay(_))(datetime) && !form!(Form::Meal)(datetime)),
              |_, a| {
                  Ok(a.value().the_nth(0)?
@@ -277,7 +261,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              }
     );
     b.rule_2("next <datetime>",
-             b.reg(r#"(?:the |this )?next"#)?,
+             b.reg(r#"следующ(?:ий|ая|ей|его)"#)?,
              datetime_check!(|datetime: &DatetimeValue| !form!(Form::PartOfDay(_))(datetime) && !form!(Form::Meal)(datetime)),
              |_, a| {
                  Ok(a.value().the_nth(0)?
@@ -286,7 +270,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              }
     );
     b.rule_2("last <datetime>",
-             b.reg(r#"this past|(?:the |this )?last"#)?,
+             b.reg(r#"последн(?:ий|ая|ей|яя|ее)|прошл(?:ый|ая|ой|ое)|предыдущ(?:ий|ая|ей|ее)"#)?,
              datetime_check!(|datetime: &DatetimeValue| !form!(Form::PartOfDay(_))(datetime) && !form!(Form::Meal)(datetime)),
              |_, a| {
                  Ok(a.value().the_nth(-1)?
@@ -297,7 +281,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     // TODO: add restrictions on datetime form (week days?)
     b.rule_2("<datetime> after next",
              datetime_check!(),
-             b.reg(r#"after next"#)?,
+             b.reg(r#"после следующ(?:ий|ая|ей|его)"#)?,
              |a, _| {
                  Ok(a.value().the_nth_not_immediate(1)?
                      .form(a.value().form.clone())
@@ -309,14 +293,21 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - DATE - YEAR */
 
     b.rule_2("the year + integer 1000-2100",
-             b.reg(r#"(?:the )?year"#)?,
+             b.reg(r#"год"#)?,
              integer_check_by_range!(1000, 2100),
              |_, integer| {
                  helpers::year(integer.value().value as i32)
              }
     );
+    b.rule_2("integer 1000-2100 + year",
+             integer_check_by_range!(1000, 2100),
+             b.reg(r#"г(?:од)?\.?"#)?,
+             |integer, _| {
+                 helpers::year(integer.value().value as i32)
+             }
+    );
     b.rule_3("the year + composed 1900-2199",
-             b.reg(r#"(?:the )?year"#)?,
+             b.reg(r#"год"#)?,
              integer_check_by_range!(19, 21),
              integer_check_by_range!(10, 99),
              |_, a, b| {
@@ -383,28 +374,12 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
 
     */
 
-    b.rule_2("the <day-of-month> (ordinal)",
-             b.reg(r#"the"#)?,
-             ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
-             |_, ordinal| {
-                 Ok(helpers::day_of_month(ordinal.value().value as u32)?.latent())
-             }
-    );
     b.rule_1("<day-of-month> (ordinal)",
              ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
              |ordinal| {
                  Ok(helpers::day_of_month(ordinal.value().value as u32)?.latent())
              }
     );
-// FIXME: incorrect/unsupport
-    b.rule_2("the <day-of-month> (non ordinal)",
-             b.reg(r#"the"#)?,
-             integer_check_by_range!(1, 31),
-             |_, integer| {
-                 Ok(helpers::day_of_month(integer.value().value as u32)?.latent())
-             }
-    );
-    // TODO: allow <day-of-month> as integer form too?
     b.rule_2("<named-day> <day-of-month> (ordinal)",
              datetime_check!(form!(Form::DayOfWeek{..})),
              ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
@@ -426,49 +401,6 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                  year.value().intersect(&month_day.value())
              }
     );
-    b.rule_2("<named-month> <day-of-month> (ordinal)", // march 12th
-             datetime_check!(form!(Form::Month{..})),
-             ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
-             |month, ordinal| {
-                 let m = month.value().form_month()?;
-                 helpers::month_day(m, ordinal.value().value as u32)
-             }
-    );
-    b.rule_2("<named-month> <day-of-month> (non ordinal)",
-             datetime_check!(form!(Form::Month(_))),
-             integer_check_by_range!(1, 31),
-             |month, integer| {
-                 let m = month.value().form_month()?;
-                 helpers::month_day(m, integer.value().value as u32)
-             }
-    );
-    b.rule_3("<named-month> the <day-of-month> (non ordinal)",
-             datetime_check!(form!(Form::Month(_))),
-             b.reg(r#"the"#)?,
-             integer_check_by_range!(1, 31),
-             |month, _, integer| {
-                 let m = month.value().form_month()?;
-                 helpers::month_day(m, integer.value().value as u32)
-             }
-    );
-    b.rule_3("<day-of-month> (ordinal) of <named-month>",
-             ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
-             b.reg(r#"of|in"#)?,
-             datetime_check!(form!(Form::Month(_))),
-             |ordinal, _, month| {
-                 let m = month.value().form_month()?;
-                 helpers::month_day(m, ordinal.value().value as u32)
-             }
-    );
-    b.rule_3("<day-of-month> (non ordinal) of <named-month>",
-             integer_check_by_range!(1, 31),
-             b.reg(r#"of|in"#)?,
-             datetime_check!(form!(Form::Month(_))),
-             |integer, _, month| {
-                 let m = month.value().form_month()?;
-                 helpers::month_day(m, integer.value().value as u32)
-             }
-    );
     b.rule_2("<day-of-month> (non ordinal) <named-month>",
              integer_check_by_range!(1, 31),
              datetime_check!(form!(Form::Month(_))),
@@ -477,7 +409,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                  helpers::month_day(m, integer.value().value as u32)
              }
     );
-    b.rule_2("<day-of-month>(ordinal) <named-month>",
+    b.rule_2("<day-of-month> (ordinal) <named-month>",
              ordinal_check!(|ordinal: &OrdinalValue| 1 <= ordinal.value && ordinal.value <= 31),
              datetime_check!(form!(Form::Month(_))),
              |ordinal, month| {
@@ -520,81 +452,87 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              }
     );
     b.rule_2("at <time-of-day>",
-             b.reg(r#"at|@"#)?,
+             b.reg(r#"в"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, a| Ok(a.value().clone().not_latent())
     );
-    b.rule_2("<time-of-day> o'clock",
+    b.rule_2("<time-of-day> hours",
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"o.?clock"#)?,
+             b.reg(r#"час(?:ов|а)"#)?,
              |a, _| Ok(a.value().clone().not_latent())
     );
     b.rule_3("at <time-of-day> hours",
-             b.reg(r#"at"#)?,
+             b.reg(r#"в"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"hours"#)?,
+             b.reg(r#"час(?:ов|а)"#)?,
              |_, a, _| Ok(a.value().clone().not_latent())
     );
-    // TODO: check - invalid? military + am/pm
-    b.rule_2_terminal("hhmm (military) am|pm",
-                      b.reg(r#"((?:1[012]|0?\d))([0-5]\d)"#)?,
-                      b.reg(r#"([ap])\.?m?\.?"#)?,
-                      |a, b| {
-                          let day_period = if b.group(1) == "a" {
-                              helpers::hour(0, false)?.span_to(&helpers::hour(12, false)?, false)?
-                          } else {
-                              helpers::hour(12, false)?.span_to(&helpers::hour(0, false)?, false)?
-                          };
-                          let anchor = helpers::hour_minute(
-                              a.group(1).parse()?,
-                              a.group(2).parse()?,
-                              true)?;
-                          let form = anchor.form.clone();
-                          Ok(anchor.intersect(&day_period)?.form(form))
-                      }
-    );
-    b.rule_2("<time-of-day> am|pm",
+    // b.rule_2("<time-of-day> in the morning|afternoon",
+    //          datetime_check!(form!(Form::TimeOfDay(_))),
+    //          b.reg(r#"(утра|дня|вечера)"#)?,
+    //          |a, text_match| {
+    //              let mut value = a.value().clone();
+    //              let day_period = if text_match.group(1) == "утра" {
+    //                  helpers::hour(0, false)?.span_to(&helpers::hour(12, false)?, false)?
+    //              } else {
+    //                  helpers::hour(12, false)?.span_to(&helpers::hour(0, false)?, false)?
+    //              };
+    //              println!("span: {:?}",  helpers::hour(0, false)?.span_to(&helpers::hour(12, false)?, false)?);
+    //              Ok(a.value().intersect(&day_period)?.form(a.value().form.clone()))
+    //          }
+    // );
+    b.rule_2("<time-of-day> morning",
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"(?:in the )?([ap])(?:\s|\.)?m?\.?"#)?,
-             |a, text_match| {
-                 let day_period = if text_match.group(1) == "a" {
-                     helpers::hour(0, false)?.span_to(&helpers::hour(12, false)?, false)?
-                 } else {
-                     helpers::hour(12, false)?.span_to(&helpers::hour(0, false)?, false)?
-                 };
-                 Ok(a.value().intersect(&day_period)?.form(a.value().form.clone()))
+             b.reg(r#"утра"#)?,
+             |a, _| {
+                 let time_of_day = a.value().form_time_of_day()?;
+                 let full_hour = time_of_day.full_hour();
+                 if full_hour > 12 {
+                     return Ok(a.value().clone());
+                 }
+
+                 let period = helpers::hour(0, false)?
+                     .span_to(&helpers::hour(12, false)?, false)?;
+                 let fixed = a.value().intersect(&period)?.form(a.value().form.clone());
+                 Ok(fixed)
              }
     );
-    b.rule_2("<time-of-day> in the morning|afternoon",
+    b.rule_2("<time-of-day> afternoon",
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"in the (morning|afternoon|evening)"#)?,
-             |a, text_match| {
-                 let day_period = if text_match.group(1) == "morning" {
-                     helpers::hour(0, false)?.span_to(&helpers::hour(12, false)?, false)?
-                 } else {
-                     helpers::hour(12, false)?.span_to(&helpers::hour(0, false)?, false)?
-                 };
-                 Ok(a.value().intersect(&day_period)?.form(a.value().form.clone()))
+             b.reg(r#"дня|вечера"#)?,
+             |a, _| {
+                 let time_of_day = a.value().form_time_of_day()?;
+                 let mut full_hour = time_of_day.full_hour();
+                 if full_hour < 12 {
+                     full_hour += 12;
+                 }
+
+                 let fixed = match time_of_day {
+                     TimeOfDayForm::Hour { .. } => helpers::hour(full_hour, false),
+                     TimeOfDayForm::HourMinute { minute, .. } => helpers::hour_minute(full_hour, minute, false),
+                     TimeOfDayForm::HourMinuteSecond { minute, second, .. } => helpers::hour_minute_second(full_hour, minute, second, false),
+                 }?;
+                 Ok(fixed)
              }
     );
     b.rule_1_terminal("noon",
-                      b.reg(r#"noon|midday"#)?,
+                      b.reg(r#"пол(?:удня|день)"#)?,
                       |_| helpers::hour(12, false)
     );
     b.rule_1_terminal("midnight",
-                      b.reg(r#"midni(?:ght|te)"#)?,
+                      b.reg(r#"полночь"#)?,
                       |_| helpers::hour(0, false)
     );
     b.rule_1_terminal("quarter (relative minutes)",
-                      b.reg(r#"(?:a|one)? ?quarter"#)?,
+                      b.reg(r#"четверть"#)?,
                       |_| helpers::relative_minute_value(15)
     );
     b.rule_1_terminal("half (relative minutes)",
-                      b.reg(r#"half"#)?,
+                      b.reg(r#"пол(?:овина)?"#)?,
                       |_| helpers::relative_minute_value(30)
     );
     b.rule_2("0 or o as 0 + number [1-9] (as relative minutes)",
-             b.reg(r#"o|zero"#)?,
+             b.reg(r#"ноль"#)?,
              integer_check_by_range!(1, 9),
              |_, a| {
                  helpers::relative_minute_value_prefixed(a.value().value as i32)
@@ -605,14 +543,14 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              |a| helpers::relative_minute_value(a.value().value as i32)
     );
     b.rule_3("0 or o as 0 number [1-9] minutes (as relative minutes)",
-             b.reg(r#"o|zero"#)?,
+             b.reg(r#"ноль"#)?,
              integer_check_by_range!(1, 9),
-             b.reg(r#"minutes?"#)?,
+             b.reg(r#"минут"#)?,
              |_, a, _| helpers::relative_minute_value_prefixed(a.value().value as i32)
     );
     b.rule_2("number [1-59] minutes (as relative minutes)",
              integer_check_by_range!(1, 59),
-             b.reg(r#"minutes?"#)?,
+             b.reg(r#"минут"#)?,
              |a, _| helpers::relative_minute_value(a.value().value as i32)
     );
     b.rule_2("<hour-of-day> <integer> (as relative minutes)",
@@ -631,11 +569,11 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              }
     );
     b.rule_5("at <hour-of-day> hours <integer> minutes",
-             b.reg(r#"at"#)?,
+             b.reg(r#"в"#)?,
              datetime_check!(form!(Form::TimeOfDay(TimeOfDayForm::Hour {.. }))),
-             b.reg(r#"hours?(?: and)?"#)?,
+             b.reg(r#"час(?:а|ов)(?: и)?"#)?,
              relative_minute_check!(),
-             b.reg(r#"minutes?"#)?,
+             b.reg(r#"минут"#)?,
              |_, datetime, _, relative_minutes, _| Ok(helpers::hour_relative_minute(
                  datetime.value().form_time_of_day()?.full_hour(),
                  relative_minutes.value().value,
@@ -644,7 +582,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     );
     b.rule_3("relative minutes to|till|before <integer> (hour-of-day)",
              relative_minute_check!(),
-             b.reg(r#"to|till|before|of"#)?,
+             b.reg(r#"к|до"#)?,
              datetime_check!(form!(Form::TimeOfDay(TimeOfDayForm::Hour {.. }))),
              |relative_minutes, _, datetime| Ok(helpers::hour_relative_minute(
                  datetime.value().form_time_of_day()?.full_hour(),
@@ -654,40 +592,54 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     );
     b.rule_3("relative minutes after|past <integer> (hour-of-day)",
              relative_minute_check!(),
-             b.reg(r#"after|past"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(form!(Form::TimeOfDay(TimeOfDayForm::Hour {.. }))),
              |relative_minutes, _, datetime| Ok(helpers::hour_relative_minute(
                  datetime.value().form_time_of_day()?.full_hour(),
                  relative_minutes.value().value,
                  datetime.value().form.is_12_clock())?.precision(datetime.value().precision))
     );
-    b.rule_2("half <integer> (UK style hour-of-day)",
-             b.reg(r#"half"#)?,
-             datetime_check!(form!(Form::TimeOfDay(TimeOfDayForm::Hour {.. }))),
-             |_, datetime| Ok(helpers::hour_relative_minute(
-                 datetime.value().form_time_of_day()?.full_hour(),
-                 30,
-                 datetime.value().form.is_12_clock())?.precision(datetime.value().precision))
-    );
     /* END OF DATETIME - TIME - TIME OF DAY */
 
     /* DATETIME - TIME - TIME OF DAY - WRITTEN FORMS */
-// Time - written form only
     b.rule_1_terminal("hh:mm",
-                      b.reg(r#"((?:[01]?\d)|(?:2[0-3]))[:.]([0-5]\d)"#)?,
-                      |text_match| helpers::hour_minute(
-                          text_match.group(1).parse()?,
-                          text_match.group(2).parse()?,
-                          true)
+                      b.reg(r#"((?:[01]?\d)|(?:2[0-3]))[:.ч]([0-5]\d)"#)?,
+                      |text_match| {
+                          let hours: u32 = text_match.group(1).parse()?;
+                          let minutes: u32 = text_match.group(2).parse()?;
+                          helpers::hour_minute(hours, minutes, false)
+                      }
     );
-// Time - written form only
+    b.rule_3_terminal("hh(:|h)mm - hh(:|h)mm (time-of-day interval)",
+                      b.reg(r#"((?:[01]?\d)|(?:2[0-3]))[:.ч]([0-5]\d)"#)?,
+                      b.reg(r#" ?\- ?"#)?,
+                      b.reg(r#"((?:[01]?\d)|(?:2[0-3]))[:.ч]([0-5]\d)"#)?,
+                      |a, _, b| {
+                          let hour_start: u32 = a.group(1).parse()?;
+                          let minute_start: u32 = a.group(2).parse()?;
+                          let hour_end: u32 = b.group(1).parse()?;
+                          let minute_end: u32 = b.group(2).parse()?;
+                          let start = helpers::hour_minute(hour_start, minute_start, hour_start < 12)?;
+                          let end = helpers::hour_minute(hour_end, minute_end, hour_end < 12)?;
+                          start.smart_span_to(&end, false)
+                      }
+    );
     b.rule_1_terminal("hh:mm:ss",
                       b.reg(r#"((?:[01]?\d)|(?:2[0-3]))[:.]([0-5]\d)[:.]([0-5]\d)"#)?,
-                      |text_match| helpers::hour_minute_second(
+                      |text_match| {
+                          let hours: u32 = text_match.group(1).parse()?;
+                          let minutes: u32 = text_match.group(2).parse()?;
+                          let seconds: u32 = text_match.group(3).parse()?;
+                          helpers::hour_minute_second(hours, minutes, seconds, false)
+                      }
+    );
+    b.rule_1_terminal("hhmm (military time-of-day)",
+                      b.reg(r#"((?:[01]?\d)|(?:2[0-3]))([0-5]\d)"#)?,
+                      |text_match| Ok(helpers::hour_minute(
                           text_match.group(1).parse()?,
                           text_match.group(2).parse()?,
-                          text_match.group(3).parse()?,
-                          true)
+                          false
+                      )?.latent())
     );
     /* END OF DATETIME - TIME - TIME OF DAY - WRITTEN FORMS */
 
@@ -758,12 +710,12 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - TIME - PARTS OF DAY */
 
     b.rule_1_terminal("now",
-                      b.reg(r#"(?:just |right )?now|immediately|at (?:this time|(?:this very |the )moment|the present time)|for the moment"#)?,
+                      b.reg(r#"(?:прямо )?сейчас|немедленно|в этот момент|в это время"#)?,
                       |_| helpers::cycle_nth(Grain::Second, 0)
     );
 
     b.rule_1_terminal("morning",
-                      b.reg(r#"morning"#)?,
+                      b.reg(r#"утро"#)?,
                       |_| {
                           Ok(helpers::hour(4, false)?
                               .span_to(&helpers::hour(12, false)?, false)?
@@ -772,14 +724,14 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("breakfast",
-                      b.reg(r#"breakfast"#)?,
+                      b.reg(r#"завтрак"#)?,
                       |_| Ok(helpers::hour(5, false)?
                           .span_to(&helpers::hour(10, false)?, false)?
                           .latent()
                           .form(Form::Meal))
     );
     b.rule_1_terminal("early morning",
-                      b.reg(r#"early (?:(?:in|hours of) the )?morning"#)?,
+                      b.reg(r#"ранн(?:ее|им) утром?"#)?,
                       |_| {
                           Ok(helpers::hour(4, false)?
                               .span_to(&helpers::hour(9, false)?, false)?
@@ -789,7 +741,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     );
 // FIXME: Change PartOfDayForm?
     b.rule_1_terminal("before work",
-                      b.reg(r#"before work"#)?,
+                      b.reg(r#"до работы"#)?,
                       |_| {
                           Ok(helpers::hour(4, false)?
                               .span_to(&helpers::hour(9, false)?, false)?
@@ -797,7 +749,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("during work",
-                      b.reg(r#"during work(?: time)?"#)?,
+                      b.reg(r#"в (?:течении дня|рабочее время)"#)?,
                       |_| {
                           Ok(helpers::hour(9, false)?
                               .span_to(&helpers::hour(19, false)?, false)?
@@ -806,7 +758,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("afternoon",
-                      b.reg(r#"after ?noo?n"#)?,
+                      b.reg(r#"после полудня"#)?,
                       |_| {
                           Ok(helpers::hour(12, false)?
                               .span_to(&helpers::hour(19, false)?, false)?
@@ -815,7 +767,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("evening",
-                      b.reg(r#"evening"#)?,
+                      b.reg(r#"вечер"#)?,
                       |_| {
                           Ok(helpers::hour(18, false)?
                               .span_to(&helpers::hour(0, false)?, false)?
@@ -824,7 +776,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("night",
-                      b.reg(r#"night"#)?,
+                      b.reg(r#"ночь"#)?,
                       |_| {
                           Ok(helpers::hour(00, false)?
                               .span_to(&helpers::hour(5, false)?, false)?
@@ -833,7 +785,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("last night",
-                      b.reg(r#"last night"#)?,
+                      b.reg(r#"прошл(?:ая|ой) ночью?|последн(?:яя|ей) ночью?"#)?,
                       |_| {
                           let yesterday = helpers::cycle_nth(Grain::Day, -1)?;
                           let night = helpers::hour(00, false)?
@@ -843,15 +795,8 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                           yesterday.intersect(&night)
                       }
     );
-    b.rule_1_terminal("brunch",
-                      b.reg(r#"brunch"#)?,
-                      |_| Ok(helpers::hour(10, false)?
-                          .span_to(&helpers::hour(15, false)?, false)?
-                          .latent()
-                          .form(Form::Meal))
-    );
     b.rule_1_terminal("lunch",
-                      b.reg(r#"lunch"#)?,
+                      b.reg(r#"обед"#)?,
                       |_| {
                           Ok(helpers::hour(12, false)?
                               .span_to(&helpers::hour(14, false)?, false)?
@@ -860,45 +805,19 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("dinner",
-                      b.reg(r#"dinner|supper"#)?,
+                      b.reg(r#"ужин"#)?,
                       |_| Ok(helpers::hour(18, false)?
                           .span_to(&helpers::hour(23, false)?, false)?
                           .latent()
                           .form(Form::Meal))
     );
-    b.rule_1_terminal("tea",
-                      b.reg(r#"(?:at )?tea time"#)?,
-                      |_| Ok(helpers::hour(15, false)?
-                          .span_to(&helpers::hour(17, false)?, false)?
-                          .form(Form::Meal))
-    );
-    b.rule_2("at <meal>",
-             b.reg("at|for|during")?,
-             datetime_check!(form!(Form::Meal)),
-             |_, a| Ok(a.value().clone().not_latent())
-    );
-    b.rule_2("around <meal>",
-             b.reg("(?:about|around|approximately)")?,
-             datetime_check!(form!(Form::Meal)),
-             |_, a| Ok(a.value().clone().not_latent().precision(Approximate))
-    );
-    b.rule_2("<meal><datetime>",
-             datetime_check!(|datetime: &DatetimeValue| datetime.latent && form!(Form::Meal)(datetime)),
-             b.reg("time")?,
-             |a, _| Ok(a.value().clone().not_latent())
-    );
-    b.rule_2("the <part-of-day>",
-             b.reg(r#"the"#)?,
-             datetime_check!(|datetime: &DatetimeValue| form!(Form::PartOfDay(_))(datetime) || form!(Form::Meal)(datetime)),
-             |_, datetime| Ok(datetime.value().clone().latent())
-    );
     b.rule_2("in|for|during the <part-of-day>",
-             b.reg(r#"(?:in|for|during)(?: the)?"#)?,
+             b.reg(r#"(?:в течении|в пределах|за)"#)?,
              datetime_check!(|datetime: &DatetimeValue| form!(Form::PartOfDay(_))(datetime) || form!(Form::Meal)(datetime)),
              |_, datetime| Ok(datetime.value().clone().not_latent())
     );
     b.rule_2("this <part-of-day>",
-             b.reg(r#"this"#)?,
+             b.reg(r#"эт(?:от|им|у|ого)"#)?,
              datetime_check!(|datetime: &DatetimeValue| form!(Form::PartOfDay(_))(datetime) || form!(Form::Meal)(datetime)),
              |_, datetime| Ok(helpers::cycle_nth(Grain::Day, 0)?
                  .intersect(datetime.value())?
@@ -906,7 +825,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                  .datetime_kind(DatetimeKind::DatetimeComplement { date_and_time: true, today: true }))
     );
     b.rule_1_terminal("tonight",
-                      b.reg(r#"toni(?:ght|gth|te)"#)?,
+                      b.reg(r#"ночью"#)?,
                       |_| {
                           let period = helpers::hour(18, false)?.span_to(&helpers::hour(0, false)?, false)?;
                           Ok(helpers::cycle_nth(Grain::Day, 0)?
@@ -916,7 +835,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("after lunch",
-                      b.reg(r#"after(?:-|\s)?lunch"#)?,
+                      b.reg(r#"после обеда"#)?,
                       |_| {
                           let period = helpers::hour(13, false)?.span_to(&helpers::hour(17, false)?, false)?;
                           Ok(helpers::cycle_nth(Grain::Day, 0)?
@@ -925,7 +844,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("after work - resolve as 'evening' but not latent",
-                      b.reg(r#"after(?:-|\s)?work"#)?,
+                      b.reg(r#"после работы"#)?,
                       |_| {
                           Ok(helpers::hour(18, false)?
                               .span_to(&helpers::hour(0, false)?, false)?
@@ -948,17 +867,10 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              datetime_check!(|datetime: &DatetimeValue| excluding_form!(Form::Year(_))(datetime) && excluding_form!(Form::Month(_))(datetime)),
              |part_of_day, datetime| datetime.value().intersect(part_of_day.value())
     );
-    // TODO: Date ruletime - restrict combination of date/time forms - but check correctness & support
-    b.rule_3("<part-of-day> of <datetime>",
-             datetime_check!(|datetime: &DatetimeValue| form!(Form::PartOfDay(_))(datetime) || form!(Form::Meal)(datetime)),
-             b.reg(r#"of"#)?,
-             datetime_check!(|datetime: &DatetimeValue| excluding_form!(Form::Year(_))(datetime) && excluding_form!(Form::Month(_))(datetime)),
-             |part_of_day, _, datetime| datetime.value().intersect(part_of_day.value())
-    );
     // TODO: Date rule - check if supported and restrict date form to day
     b.rule_3("<datetime> before <time-of-day> (interval)",
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
-             b.reg(r#"until|before|not after"#)?,
+             b.reg(r#"до|к"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |a, _, b| a.value().span_to(b.value(), false)
     );
@@ -968,7 +880,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - DATE-PERIOD - GRAINS AS DATE INTERVALS */
 
     b.rule_1_terminal("week-end - Hour grain, from Friday evening to Sunday midnight",
-                      b.reg(r#"(?:the )?(?:week(?:\s|-)?end|wkend)"#)?,
+                      b.reg(r#"выходные(?: дни)"#)?,
                       |_| {
                           let friday = helpers::day_of_week(Weekday::Fri)?
                               .intersect(&helpers::hour(18, false)?)?;
@@ -978,33 +890,33 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
                       }
     );
     b.rule_1_terminal("season - summer",
-                      b.reg(r#"(?:the )?summer"#)?,
+                      b.reg(r#"летом?"#)?,
                       |_| Ok(helpers::month_day(6, 21)?
                           .span_to(&helpers::month_day(9, 23)?, false)?
                           .form(Form::Season))
     );
     b.rule_1_terminal("season - fall",
-                      b.reg(r#"(?:the )?(?:fall|autumn)"#)?,
+                      b.reg(r#"осенью?"#)?,
                       |_| Ok(helpers::month_day(9, 23)?
                           .span_to(&helpers::month_day(12, 21)?, false)?
                           .form(Form::Season))
     );
     b.rule_1_terminal("season - winter",
-                      b.reg(r#"(?:the )?winter"#)?,
+                      b.reg(r#"зим(?:а|ой|у)"#)?,
                       |_| Ok(helpers::month_day(12, 21)?
                           .span_to(&helpers::month_day(3, 20)?, false)?
                           .form(Form::Season))
     );
     // FIXME: Also add support for combined years? e.g. "winter 2014-2015"
     b.rule_2("season - winter <year>",
-                      b.reg(r#"(?:the )?winter(?: of)?"#)?,
+                      b.reg(r#"зим(?:ой|у)"#)?,
                       datetime_check!(form!(Form::Year(_))),
                       |_, year| Ok(helpers::year_month_day(year.value().form_year()?, 12, 21)?
                           .span_to(&helpers::year_month_day(year.value().form_year()? + (1 as i32), 3, 20)?, false)?
                           .form(Form::Season))
     );
     b.rule_1_terminal("season - spring",
-                      b.reg(r#"(?:the )?spring"#)?,
+                      b.reg(r#"весн(?:а|ой|у)"#)?,
                       |_| Ok(helpers::month_day(3, 20)?
                           .span_to(&helpers::month_day(6, 21)?, false)?
                           .form(Form::Season))
@@ -1014,44 +926,18 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
 
     /* DATETIME - TIME - TIME OF DAY WITH PRECISION - UNSUPPORTED */
 
-    // TODO: [rm] not supported
-    b.rule_1_terminal("<hour>ish",
-                      b.reg(r#"(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)ish"#)?,
-                      |text_match| {
-                          let hour = match text_match.group(1).as_ref() {
-                              "one" => 1,
-                              "two" => 2,
-                              "three" => 3,
-                              "four" => 4,
-                              "five" => 5,
-                              "six" => 6,
-                              "seven" => 7,
-                              "eight" => 8,
-                              "nine" => 9,
-                              "ten" => 10,
-                              "eleven" => 11,
-                              "twelve" => 12,
-                              _ => return Err(RuleError::Invalid.into()),
-                          };
-                          Ok(helpers::hour(hour, true)?.precision(Approximate))
-                      });
     b.rule_2("<time-of-day> approximately",
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"-?ish|approximately"#)?,
+             b.reg(r#"примерно"#)?,
              |datetime, _| Ok(datetime.value().clone().not_latent().precision(Precision::Approximate))
     );
     b.rule_2("about <time-of-day>",
-             b.reg(r#"about|around|approximately"#)?,
+             b.reg(r#"около|примерно|в районе"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, datetime| Ok(datetime.value().clone().not_latent().precision(Precision::Approximate))
     );
-    b.rule_2("<time-of-day> sharp",
-             datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"sharp|exactly|precisely"#)?,
-             |datetime, _| Ok(datetime.value().clone().not_latent().precision(Precision::Exact))
-    );
     b.rule_2("exactly <time-of-day>",
-             b.reg(r#"exactly|precisely"#)?,
+             b.reg(r#"в точности|ровно|точно"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, datetime| Ok(datetime.value().clone().not_latent().precision(Precision::Exact))
     );
@@ -1065,7 +951,7 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     b.rule_4("<month> dd-dd (interval)",
              datetime_check!(form!(Form::Month(_))),
              b.reg(r#"(3[01]|[12]\d|0?[1-9])"#)?,
-             b.reg(r#"\-|to|th?ru|through|(?:un)?til(?:l)?"#)?,
+             b.reg(r#"\-|по|до"#)?,
              b.reg(r#"(3[01]|[12]\d|0?[1-9])"#)?,
              |datetime, a, _, b| {
                  let start = datetime.value()
@@ -1078,23 +964,23 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     // TODO: split written / verbalized forms
     b.rule_3("<datetime> - <datetime> (interval)",
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
-             b.reg(r#"\-|to|th?ru|through|(?:un)?til(?:l)?"#)?,
+             b.reg(r#"\-|по|до"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
              |a, _, b| a.value().span_to(b.value(), true)
     );
     // TODO: split written / verbalized forms
     b.rule_4("from <datetime> - <datetime> (interval)",
-             b.reg(r#"from"#)?,
+             b.reg(r#"с"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
-             b.reg(r#"(?:on )?(?:\-|to|th?ru|through|(?:un)?til(?:l)?)"#)?,
+             b.reg(r#"по|до"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
              |_, a, _, b| a.value().span_to(b.value(), false)
     );
     // TODO: split written / verbalized forms
     b.rule_4("between <datetime> and <datetime> (interval)",
-             b.reg(r#"between"#)?,
+             b.reg(r#"между"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
-             b.reg(r#"and"#)?,
+             b.reg(r#"и"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && excluding_form!(Form::TimeOfDay(_))(datetime)),
              |_, a, _, b| a.value().span_to(b.value(), true)
     );
@@ -1106,23 +992,23 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     // TODO: split written / verbalized forms
     b.rule_3("<time-of-day> - <time-of-day> (interval)",
              datetime_check!(|datetime: &DatetimeValue|  !datetime.latent && form!(Form::TimeOfDay(_))(datetime)),
-             b.reg(r#"\-|:|to|th?ru|through|(?:un)?til(?:l)?"#)?,
+             b.reg(r#"\-|:|по|до"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |a, _, b| a.value().span_to(b.value(), false)
     );
     // TODO: split written / verbalized forms
     b.rule_4("from <time-of-day> - <time-of-day> (interval)",
-             b.reg(r#"(?:later than|from)"#)?,
+             b.reg(r#"с"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"(?:(?:but )?before)|\-|to|th?ru|through|(?:un)?til(?:l)?"#)?,
+             b.reg(r#"\-|по|до"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, a, _, b| a.value().span_to(b.value(), false)
     );
     // TODO: split written / verbalized forms
     b.rule_4("between <time-of-day> and <time-of-day> (interval)",
-             b.reg(r#"between"#)?,
+             b.reg(r#"мужду"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
-             b.reg(r#"and"#)?,
+             b.reg(r#"и"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, a, _, b| a.value().span_to(b.value(), false)
     );
@@ -1131,61 +1017,61 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     /* DATETIME - DATE AND TIME PERIODS */
 
     b.rule_2("from <datetime> (incl. <time-of-day>)",
-             b.reg(r#"from"#)?,
+             b.reg(r#"с"#)?,
              datetime_check!(),
              |_, a| Ok(a.value().clone().mark_after_start())
     );
     b.rule_2("by <time-of-day>",
-             b.reg(r#"by"#)?,
+             b.reg(r#"к"#)?,
              datetime_check!(|datetime: &DatetimeValue| !datetime.latent && form!(Form::TimeOfDay(_))(datetime)),
              |_, a| helpers::cycle_nth(Grain::Second, 0)?.span_to(a.value(), false)
     );
     // TODO: restrict datetime forms
     b.rule_2("by the end of <datetime>",
-             b.reg(r#"by (?:the )?end of"#)?,
+             b.reg(r#"к концу"#)?,
              datetime_check!(),
              |_, a| helpers::cycle_nth(Grain::Day, 0)?.span_to(a.value(), true)
     );
     // TODO: correct regex
     b.rule_2("until <time-of-day>",
-             b.reg(r#"(?:anytime |sometimes? )?(?:(?:un)?til(?:l)?|through|up to)"#)?,
+             b.reg(r#"до"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, a| Ok(a.value().clone().mark_before_end())
     );
     b.rule_2("until <datetime>",
-             b.reg(r#"(?:anytime |sometimes? )?(?:(?:un)?til(?:l)?|through|up to)"#)?,
+             b.reg(r#"до"#)?,
              datetime_check!(|datetime: &DatetimeValue| excluding_form!(Form::TimeOfDay(_))(datetime)),
              |_, a| Ok(a.value().clone().mark_before_end_all())
     );
     b.rule_2("before <time-of-day>",
-             b.reg(r#"(?:anytime |sometimes? )?before"#)?,
+             b.reg(r#"до|перед"#)?,
              datetime_check!(form!(Form::TimeOfDay(_))),
              |_, a| Ok(a.value().clone().mark_before_start())
     );
     b.rule_2("before <datetime>",
-             b.reg(r#"(?:anytime |sometimes? )?before"#)?,
+             b.reg(r#"до"#)?,
              datetime_check!(|datetime: &DatetimeValue| excluding_form!(Form::TimeOfDay(_))(datetime)),
              |_, a| Ok(a.value().clone().mark_before_start())
     );
     // TODO: split date/time period + correct regex
     b.rule_2("after <time-of-day>",
-             b.reg(r#"(?:anytime |sometimes? )?after"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(),
              |_, a| Ok(a.value().clone().mark_after_end())
     );
     // TODO: split date/time period + correct regex
     b.rule_2("since <time-of-day>",
-             b.reg(r#"since"#)?,
+             b.reg(r#"c(?: момента|о)?"#)?,
              datetime_check!(),
              |_, a| Ok(a.value().the_nth(-1)?.mark_after_start())
     );
     b.rule_2("about <datetime>",
-             b.reg(r#"(?:about|around|approximately)"#)?,
+             b.reg(r#"около|примерно|в районе"#)?,
              datetime_check!(|datetime: &DatetimeValue|  !datetime.latent),
              |_, datetime| Ok(datetime.value().clone().precision(Precision::Approximate))
     );
     b.rule_2("exactly <datetime>",
-             b.reg(r#"exactly|precisely"#)?,
+             b.reg(r#"в точности|ровно|точно"#)?,
              datetime_check!(|datetime: &DatetimeValue|  !datetime.latent),
              |_, datetime| Ok(datetime.value().clone().precision(Precision::Exact))
     );
@@ -1198,276 +1084,123 @@ pub fn rules_datetime(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
              b.reg(r#","#)?,
              |a, _| Ok(a.value().clone())
     );
-// Semantics of this is not a datetime with resolution
-    // b.rule_2("on a <named-day>",
-    //          b.reg(r#"on a"#)?,
-    //          datetime_check!(form!(Form::DayOfWeek{..})),
-    //          |_, a| Ok(a.value().clone())
-    // );
-    b.rule_2("the ides of <named-month>",
-             b.reg(r#"the ides? of"#)?,
-             datetime_check!(form!(Form::Month(_))),
-             |_, a| {
-                 let day = match a.value().form_month()? {
-                     3 | 5 | 7 | 10 => 15,
-                     _ => 13,
-                 };
-                 a.value().intersect(&helpers::day_of_month(day)?)
-             }
-    );
-//    b.rule_2("<datetime> before last",
-//             datetime_check!(),
-//             b.reg(r#"before last"#)?,
-//             |a, _| {
-//                 a.value().the_nth(-2)
-//             }
-//    );
-    /* END OF DATETIME - MISC. / UNSUPPORTED? */
-
     Ok(())
 }
 
 pub fn rules_datetime_with_duration(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
-
     b.rule_2("in <duration>",
-             b.reg(r#"in"#)?,
+             b.reg(r#"через"#)?,
              duration_check!(),
-             |_, duration| duration.value().in_present()
+             |_, duration| {
+                 println!("duration_1: {:?}", duration);
+                 duration.value().in_present()
+             }
     );
-    b.rule_3("in <duration> from now",
-             b.reg(r#"in"#)?,
-             duration_check!(),
-             b.reg(r#"from now"#)?,
-             |_, duration, _| duration.value().in_present()
-    );
-    b.rule_3("in <duration>",
-             b.reg(r#"in"#)?,
-             duration_check!(),
-             b.reg(r#"(?:' )? times?"#)?,
-             |_, duration, _| duration.value().in_present()
-    );
-
     // TODO: split date/time period
     b.rule_2("within <duration>",
-             b.reg(r#"within"#)?,
+             b.reg(r#"в течение"#)?,
              duration_check!(),
              |_, a| helpers::cycle_nth(Grain::Second, 0)?.span_to(&a.value().in_present()?, false)
     );
 
     b.rule_2("<duration> from now/today",
              duration_check!(),
-             b.reg(r#"from (today|now)"#)?,
+             b.reg(r#"с этого момента"#)?,
              |a, _| {
                  a.value().in_present()
              }
     );
 
-    // FIXME: This is not very clear
-    b.rule_3("for <duration> from now/today",
-             b.reg(r#"for"#)?,
-             duration_check!(),
-             b.reg(r#"from (today|now)"#)?,
-             |_, duration, grain| {
-                 let start = helpers::cycle_nth(Grain::Second, 0)?;
-                 let mut end = duration.value().in_present()?;
-                 if grain.group(1) == "today" {
-                     end = duration.value().in_present_day()?;
-                 }
-                 start.span_to(&end, false)
-             }
-    );
-
     b.rule_2("<duration> ago",
              duration_check!(),
-             b.reg(r#"ago"#)?,
+             b.reg(r#"(?:тому )?назад"#)?,
              |a, _| {
                  a.value().ago()
              }
     );
 
-    b.rule_2("<duration> hence",
-             duration_check!(),
-             b.reg(r#"hence"#)?,
-             |a, _| a.value().in_present()
-    );
-
     b.rule_3("<duration> after <datetime>",
              duration_check!(),
-             b.reg(r#"after"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(),
              |duration, _, datetime| duration.value().after(datetime.value())
     );
 
     b.rule_3("<duration> before <datetime>",
              duration_check!(),
-             b.reg(r#"before"#)?,
+             b.reg(r#"до"#)?,
              datetime_check!(),
              |duration, _, datetime| duration.value().before(datetime.value())
     );
-
-// this is not a correct phrasing
-//    b.rule_2("within <date>",
-//             b.reg(r#"within"#)?,
-//             datetime_check!(),
-//             |_, a| Ok(a.value().clone().not_latent())
-//    );
-
     Ok(())
-
 }
 
 
 pub fn rules_datetime_with_cycle(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
+    // b.rule_2("in <cycle>",
+    //          b.reg(r#"через"#)?,
+    //          cycle_check!(),
+    //          |_, a| {
+    //              let res = helpers::cycle_nth(a.value().grain, 1);
+    //              res
+    //          }
+    // );
     b.rule_2("this <cycle>",
-             b.reg(r#"this|current|coming"#)?,
+             b.reg(r#"эт(?:а|от|им|у|ого|ой)|текущий"#)?,
              cycle_check!(|cycle: &CycleValue| cycle.grain.is_greater_than_day()),
              |_, a| helpers::cycle_nth(a.value().grain, 0)
     );
     b.rule_2("last <cycle>",
-             b.reg(r#"(?:the )?(?:last|past|previous)"#)?,
+             b.reg(r#"последн(?:ий|ая|ей|яя)|прошл(?:ый|ая|ой)|предыдущ(?:ий|ая|ей)|прошедш(?:ая|ий|ей)"#)?,
              cycle_check!(|cycle: &CycleValue| cycle.grain.is_greater_than_day()),
              |_, a| helpers::cycle_nth(a.value().grain, -1)
     );
     b.rule_2("next <cycle>",
-             b.reg(r#"(?:the )?next|the following"#)?,
+             b.reg(r#"следующ(?:ий|ая|ей|его)"#)?,
              cycle_check!(|cycle: &CycleValue| cycle.grain.is_greater_than_day()),
-             |_, a| helpers::cycle_nth(a.value().grain, 1)
-    );
-
-    b.rule_4("last <day-of-week> of <datetime>",
-             b.reg(r#"(?:the )?last"#)?,
-             datetime_check!(form!(Form::DayOfWeek{..})),
-             b.reg(r#"of"#)?,
-             datetime_check!(),
-             |_, a, _, b| {
-                 a.value().last_of(b.value())
-             }
-    );
-    b.rule_4("last <cycle> of <datetime>",
-             b.reg(r#"(?:the )?last"#)?,
-             cycle_check!(),
-             b.reg(r#"of|in"#)?,
-             datetime_check!(),
-             |_, cycle, _, datetime| {
-                 cycle.value().last_of(datetime.value())
-             }
-    );
-    b.rule_4("nth <datetime> of <datetime>",
-             ordinal_check!(), // the first
-             datetime_check!(), // Thursday
-             b.reg(r#"of|in"#)?, // of
-             datetime_check!(), // march
-             |ordinal, a, _, b| {
-                 b.value().intersect(a.value())?.the_nth(ordinal.value().value - 1)
-             }
-    );
-    b.rule_5("nth <datetime> of <datetime>",
-             b.reg(r#"the"#)?,
-             ordinal_check!(),
-             datetime_check!(),
-             b.reg(r#"of|in"#)?,
-             datetime_check!(),
-             |_, ordinal, a, _, b| {
-                 b.value().intersect(a.value())?.the_nth(ordinal.value().value - 1)
-             }
+             |m, a| helpers::cycle_nth(a.value().grain, 1)
     );
     b.rule_4("nth <datetime> after <datetime>",
              ordinal_check!(),
              datetime_check!(),
-             b.reg(r#"after"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(),
              |ordinal, a, _, b| {
                  a.value().the_nth_after(ordinal.value().value - 1, b.value())
              }
     );
-    b.rule_5("nth <datetime> after <datetime>",
-             b.reg(r#"the"#)?,
-             ordinal_check!(),
-             datetime_check!(),
-             b.reg(r#"after"#)?,
-             datetime_check!(),
-             |_, ordinal, a, _, b| {
-                 a.value().the_nth_after(ordinal.value().value - 1, b.value())
-             }
-    );
-    b.rule_4("the <cycle> after <datetime>",
-             b.reg(r#"the"#)?,
-             cycle_check!(),
-             b.reg(r#"after"#)?,
-             datetime_check!(),
-             |_, cycle, _, datetime| helpers::cycle_nth_after(cycle.value().grain, 1, datetime.value())
-    );
     b.rule_3("<cycle> after <datetime>",
              cycle_check!(),
-             b.reg(r#"after"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(),
              |cycle, _, datetime| helpers::cycle_nth_after(cycle.value().grain, 1, datetime.value())
     );
-    b.rule_4("the <cycle> before <datetime>",
-             b.reg(r#"the"#)?,
-             cycle_check!(),
-             b.reg(r#"before"#)?,
-             datetime_check!(),
-             |_, cycle, _, datetime| helpers::cycle_nth_after(cycle.value().grain, -1, datetime.value())
-    );
     b.rule_3("<cycle> before <datetime>",
              cycle_check!(),
-             b.reg(r#"before"#)?,
+             b.reg(r#"до|перед"#)?,
              datetime_check!(),
              |cycle, _, datetime| helpers::cycle_nth_after(cycle.value().grain, -1, datetime.value())
     );
     // TODO: resolution is not correct for times, i.e. rounds at grain
     b.rule_3("last n <cycle>",
-             b.reg(r#"(?:for |in )?(?:the |these )?(?:last|past)"#)?,
+             b.reg(r#"последн(?:ий|ая|ей|яя)|прошл(?:ый|ая|ой)|предыдущ(?:ий|ая|ей)"#)?,
              integer_check_by_range!(1, 9999),
              cycle_check!(),
              |_, integer, cycle| helpers::cycle_n_not_immediate(cycle.value().grain, -1 * integer.value().value)
     );
-    // TODO: same as previous
     b.rule_3("next n <cycle>",
-             b.reg(r#"(?:for |in )?(?:the |these )?next"#)?,
+             b.reg(r#"следующ(?:ий|ая|ей|его)"#)?,
              integer_check_by_range!(1, 9999),
              cycle_check!(),
              |_, integer, cycle| helpers::cycle_n_not_immediate(cycle.value().grain, integer.value().value)
     );
-    b.rule_4("<ordinal> <cycle> of <datetime>",
-             ordinal_check_by_range!(1, 9999),
-             cycle_check!(),
-             b.reg(r#"of|in|from"#)?,
-             datetime_check!(),
-             |ordinal, cycle, _, datetime| helpers::cycle_nth_after_not_immediate(cycle.value().grain, ordinal.value().value - 1, datetime.value())
-    );
-    b.rule_5("the <ordinal> <cycle> of <datetime>",
-             b.reg(r#"the"#)?,
-             ordinal_check_by_range!(1, 9999),
-             cycle_check!(),
-             b.reg(r#"of|in|from"#)?,
-             datetime_check!(),
-             |_, ordinal, cycle, _, datetime| helpers::cycle_nth_after_not_immediate(cycle.value().grain, ordinal.value().value - 1, datetime.value())
-    );
-    b.rule_4("the <cycle> of <datetime>",
-             b.reg(r#"the"#)?,
-             cycle_check!(),
-             b.reg(r#"of"#)?,
-             datetime_check!(),
-             |_, cycle, _, datetime| helpers::cycle_nth_after_not_immediate(cycle.value().grain, 0, datetime.value())
-    );
     b.rule_4("<ordinal> <cycle> after <datetime>",
              ordinal_check_by_range!(1, 9999),
              cycle_check!(),
-             b.reg(r#"after"#)?,
+             b.reg(r#"после"#)?,
              datetime_check!(),
              |ordinal, cycle, _, datetime| helpers::cycle_nth_after_not_immediate(cycle.value().grain, ordinal.value().value - 1, datetime.value())
     );
-    b.rule_5("the <ordinal> <cycle> after <datetime>",
-             b.reg(r#"the"#)?,
-             ordinal_check_by_range!(1, 9999),
-             cycle_check!(),
-             b.reg(r#"after"#)?,
-             datetime_check!(),
-             |_, ordinal, cycle, _, datetime| helpers::cycle_nth_after_not_immediate(cycle.value().grain, ordinal.value().value - 1, datetime.value())
-    );
-
     Ok(())
 }
 
@@ -1475,35 +1208,35 @@ pub fn rules_datetime_with_cycle(b: &mut RuleSetBuilder<Dimension>) -> RustlingR
 /* DATETIME - CYCLE DEFINITIONS */
 pub fn rules_cycle(b: &mut RuleSetBuilder<Dimension>) -> RustlingResult<()> {
     b.rule_1_terminal("second (cycle)",
-                      b.reg(r#"seconds?"#)?,
+                      b.reg(r#"сек(?:унд[аыу]?)?"#)?,
                       |_| CycleValue::new(Grain::Second)
     );
     b.rule_1_terminal("minute (cycle)",
-                      b.reg(r#"minutes?"#)?,
+                      b.reg(r#"мин(?:ут[аыу])?"#)?,
                       |_| CycleValue::new(Grain::Minute)
     );
     b.rule_1_terminal("hour (cycle)",
-                      b.reg(r#"h(?:ou)?rs?"#)?,
+                      b.reg(r#"ч(?:ас|аса|асов)?"#)?,
                       |_| CycleValue::new(Grain::Hour)
     );
     b.rule_1_terminal("day (cycle)",
-                      b.reg(r#"days?"#)?,
+                      b.reg(r#"д(?:ень|ней|ня)?"#)?,
                       |_| CycleValue::new(Grain::Day)
     );
     b.rule_1_terminal("week (cycle)",
-                      b.reg(r#"weeks?"#)?,
+                      b.reg(r#"недел[яьие]"#)?,
                       |_| CycleValue::new(Grain::Week)
     );
     b.rule_1_terminal("month (cycle)",
-                      b.reg(r#"months?"#)?,
+                      b.reg(r#"месяц(?:ев|[еуа])?"#)?,
                       |_| CycleValue::new(Grain::Month)
     );
     b.rule_1_terminal("quarter (cycle)",
-                      b.reg(r#"(?:quarter|qtr)s?"#)?,
+                      b.reg(r#"квартал(?:а|ов)?"#)?,
                       |_| CycleValue::new(Grain::Quarter)
     );
     b.rule_1_terminal("year (cycle)",
-                      b.reg(r#"y(?:ea)?rs?"#)?,
+                      b.reg(r#"года?|лет"#)?,
                       |_| CycleValue::new(Grain::Year)
     );
     Ok(())

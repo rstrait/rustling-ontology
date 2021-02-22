@@ -15,4 +15,5 @@ rustling-ontology-ko = { path = "ko" }
 rustling-ontology-zh = { path = "zh" }
 rustling-ontology-ja = { path = "ja" }
 rustling-ontology-it = { path = "it" }
+rustling-ontology-ru = { path = "ru" }
 rustling-ontology-values = { path = "../values" }

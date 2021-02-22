@@ -64,5 +64,7 @@ pub fn train_all_sync() {
 }
 
 fn main() {
-    train_all_sync();
+    println!("train Russian");
+    train_sync(Lang::RU)
+    // train_all_sync();
 }
